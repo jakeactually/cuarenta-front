@@ -1,10 +1,10 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { useHistory, useRouteMatch } from "react-router-dom";
+import { NavigateFunction, useNavigate, useParams } from "react-router-dom";
 
 export const JoinRoom = () => {
-    const history = useHistory();
-    const { params } = useRouteMatch();
+    const params = useParams();
+    const navigate = useNavigate();
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
@@ -13,8 +13,13 @@ export const JoinRoom = () => {
         });
     }, []);
     
+    const handleOnSubmit = (ev: React.FormEvent<HTMLFormElement>) => {
+        ev.preventDefault();
+        makeARoom(navigate, userName, params.id || '');
+    };
+
     return <main>
-        <form>
+        <form onSubmit={handleOnSubmit}>
             <input
                 type="text"
                 placeholder="Enter a name"
@@ -25,16 +30,14 @@ export const JoinRoom = () => {
             <button            
                 type="button"
                 className="blue-button"
-                onClick={makeARoom(history, userName, params.id)}>
+                onClick={makeARoom(navigate, userName, params.id || '')}>
                 Join room #{params.id}
             </button>
         </form>
     </main>;
 };
 
-export const makeARoom = (history, userName, roomId) => async () => {
-    const form = new FormData();
-    form.set('username', userName);
-    const { data } = await axios.post(`/join-room/${roomId}`, form);
-    history.push(`/room/${data.room_id}`);
+export const makeARoom = (navigate: NavigateFunction, username: string, roomId: string) => async () => {
+    const { data } = await axios.post(`/join-room/${roomId}`, { username });
+    navigate(`/room/${data.room_id}`);
 };

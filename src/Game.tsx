@@ -1,10 +1,10 @@
-import * as cards from './Cards';
+import * as cards from './cards';
 import { Set } from 'immutable';
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { useEffect, useState } from "react";
-import {   useRouteMatch } from "react-router-dom";
-import { useToasts } from 'react-toast-notifications';
-import { Socket } from './amber';
+import toast from 'react-hot-toast';
+import { useParams } from 'react-router-dom';
+import { Card, CardCode, GameState, Suite } from './Room';
 
 const symbols = {
     S: '♠',
@@ -15,52 +15,69 @@ const symbols = {
 
 let count = 0;
 
-export const Game = () => {
-    const { params } = useRouteMatch();
-    const { addToast } = useToasts();
+export const GameComponent = () => {
+    const params = useParams();
     
     const [socketCount, setSocketCount] = useState(0);
-    const [handSelection, setHandSelection] = useState(null);
-    const [boardSelection, setBoardSelection] = useState(new Set());
-    const [game, setGame] = useState({
+    const [handSelection, setHandSelection] = useState<Card | null>(null);
+    const [boardSelection, setBoardSelection] = useState<Set<CardCode>>(Set());
+    const [game, setGame] = useState<GameState>({
         room: {
             players: [],
-            board: []
+            deck: [],
+            board: [],
+            active: false,
+            players_list: [],
+            turn: 0,
+            dirty: false,
         },
-        user: {
-            hand: []
-        }
+        player: {
+            id: 0,
+            name: '',
+            hand: [],
+            points: 0,
+            card_points: 0,
+        },
     });
 
     useEffect(() => {
         axios.get(`/play/${params.id}`).then(({ data }) => {
             setGame(data);
         });
-    }, [count]);
+    }, [socketCount]);
+
+    const connect = () => {
+        const socket = new WebSocket(
+            `ws://localhost:8080/api/state/${params.id}`
+        );
+
+        socket.onmessage = ev => {
+            count = count + 1;
+            setSocketCount(count);
+            console.log(ev);
+        };
+
+        socket.onerror = ev => {
+            console.log(ev);
+            setTimeout(connect, 1000);
+        };
+    };
 
     useEffect(() => {
-        const socket = new Socket('/state');
-        
-        socket.connect({ port: 4000 }).then(() => {
-            const channel = socket.channel(`cuarenta_room:${params.id}`);
-            channel.join();
-            channel.on('message_new', () => {
-                setSocketCount(++count);
-            });
-        });
+        connect();
     }, []);
     
     return (
         <main>
             <div id="control">
                 <div id="players">
-                    <div class="player legend">
+                    <div className="player legend">
                         <br></br>
                         POINTS<br></br>
                         CARDS
                     </div>
                     {game.room.players.map(player =>
-                    <div className={player.id == game.room.current_player.id ? 'current player' : 'player'}>
+                    <div className={player.id == game.room.current_player?.id ? 'current player' : 'player'}>
                         <div>{player.name}</div>
                         <div>
                             <div>
@@ -76,8 +93,8 @@ export const Game = () => {
                 <button
                     id="action"
                     className={actionClass(handSelection, boardSelection)}
-                    onClick={action(handSelection, boardSelection, params.id,
-                        addToast, setHandSelection, game.room.board, setBoardSelection)}>
+                    onClick={action(handSelection, boardSelection, params.id || '',
+                        setHandSelection, game.room.board, setBoardSelection)}>
                     {actionText(handSelection, boardSelection)}
                 </button>
             </div>
@@ -90,7 +107,7 @@ export const Game = () => {
                         onClick={() => setBoardSelection(toggle(boardSelection, card.name))} />)}
                 </div>
                 <div id="hand">
-                    {game.user.hand.map(card =>
+                    {game.player.hand.map(card =>
                     <img
                     src={cards[`card_${card.name}`]}
                     className={handSelection && handSelection.name === card.name ? 'selected' : ''}
@@ -101,11 +118,16 @@ export const Game = () => {
     )
 };
 
-const toggle = (set, item) => set.has(item) ? set.delete(item) : set.add(item);
+const toggle = <T extends unknown>(set: Set<T>, item: T) => set.has(item) ? set.delete(item) : set.add(item);
 
-const action = (handSelection, boardSelection,
-    roomId, addToast, setHandSelection, board, setBoardSelection) => async () => {
-
+const action = (
+    handSelection: Card | null,
+    boardSelection: Set<CardCode>,
+    roomId: String,
+    setHandSelection: Function,
+    board: Card[],
+    setBoardSelection: Function,
+) => async () => {
     let action;
     if (handSelection) {
         action = 'sum';
@@ -125,41 +147,36 @@ const action = (handSelection, boardSelection,
 
     try {
         await axios.post(`/turn/${roomId}`, request);
-        
-        if (action == 'pass') {
-        }
     } catch (error) {
-        addToast(error.response.data, {
-            appearance: 'error',
-            autoDismiss: true
-        });
+        toast.error((error as AxiosError).response?.data);
     }
 
-    setBoardSelection(new Set());
+    setBoardSelection(Set());
     setHandSelection(null);
 };
 
-const actionText = (handSelection, boardSelection) => {
+
+const actionText = (handSelection: Card | null, boardSelection: Set<CardCode>) => {
     if (handSelection) {
         if (!boardSelection.size) {
-            return 'THROW ' + handSelection.name.replace(/[SCHD]/g, char => symbols[char]);
+            return 'THROW ' + handSelection.name.replace(/[SCHD]/g, char => symbols[char as Suite]);
         }
 
         return 'SUM ' + [handSelection.name, ...boardSelection]
             .join(' + ')
-            .replace(/[SCHD]/g, char => symbols[char]);
+            .replace(/[SCHD]/g, char => symbols[char as Suite]);
     }
 
     if (boardSelection.size) {
         return 'CLAIM ' + [...boardSelection]
             .join(', ')
-            .replace(/[SCHD]/g, char => symbols[char]);
+            .replace(/[SCHD]/g, char => symbols[char as Suite]);
     }
 
     return 'PASS';
 };
 
-const actionClass = (handSelection, boardSelection) => {
+const actionClass = (handSelection: Card | null, boardSelection: Set<CardCode>) => {
     if (handSelection) {
         return '';
     }

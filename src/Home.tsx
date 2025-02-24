@@ -1,9 +1,9 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
-import { useHistory } from "react-router-dom";
+import { NavigateFunction, useNavigate } from "react-router-dom";
 
-export const Home = ({ match }) => {
-    const history = useHistory();
+export const Home = () => {
+    const navigate = useNavigate();
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
@@ -12,8 +12,13 @@ export const Home = ({ match }) => {
         });
     }, []);
     
+    const handleOnSubmit = (ev: React.FormEvent<HTMLFormElement>) => {
+        ev.preventDefault();
+        makeARoom(navigate, userName);
+    };
+
     return <main>
-        <form>
+        <form onSubmit={handleOnSubmit}>
             <input
                 type="text"
                 placeholder="Enter a name"
@@ -24,21 +29,19 @@ export const Home = ({ match }) => {
             <button
                 type="button"
                 className="blue-button"
-                onClick={makeARoom(history, userName)}>
+                onClick={makeARoom(navigate, userName)}>
                 Make a room
             </button>
         </form>
     </main>;
 };
 
-export const makeARoom = (history, userName) => async () => {
-    const query = new URLSearchParams();
-    query.append('username', userName);
-    const { data, status } = await axios.post('/new-room', query);
+export const makeARoom = (navigate: NavigateFunction, username: string) => async () => {
+    const { data, status } = await axios.post('/new-room', { username });
     
     if (status === 401) {
-        history.push(`/join-room/${data.room_id}`);
+        navigate(`/join-room/${data.room_id}`);
     } else {
-        history.push(`/room/${data.room_id}`);
+        navigate(`/room/${data.room_id}`);
     }
 };
