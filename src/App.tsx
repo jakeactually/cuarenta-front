@@ -8,7 +8,7 @@ import { Home } from "./Home";
 import axios from 'axios';
 import { Toaster } from 'react-hot-toast';
 
-axios.defaults.baseURL = '/api';
+axios.defaults.baseURL = '/cuarenta/api';
 axios.defaults.withCredentials = true;
 
 const router = createBrowserRouter(
@@ -30,7 +30,7 @@ const router = createBrowserRouter(
       element: <GameComponent />,
     },
   ],
-  // { basename: '/cuarenta' }
+  { basename: '/cuarenta' }
 );
 
 function App() {

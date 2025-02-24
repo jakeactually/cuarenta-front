@@ -48,7 +48,7 @@ export const GameComponent = () => {
 
     const connect = () => {
         const socket = new WebSocket(
-            `ws://localhost:8080/api/state/${params.id}`
+            `${location.origin.replace('http', 'ws')}/cuarenta/api/state/${params.id}`
         );
 
         socket.onmessage = ev => {
